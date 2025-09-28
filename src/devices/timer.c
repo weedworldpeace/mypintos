@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#define MAX_SLEEP_THREADS 20
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -84,16 +85,52 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
+struct thread* sleep_threads[MAX_SLEEP_THREADS] = {}; // массив спящих процессов
+int64_t sleep_threads_size = 0;
+
+static void add_sleep_thread(struct thread* current) {
+  if (sleep_threads_size < MAX_SLEEP_THREADS) {
+    int idx = sleep_threads_size;
+    for (int i = 0; i < sleep_threads_size; i++) {
+      if (current->wakeup_tick >= sleep_threads[i]->wakeup_tick) {
+        idx = i;
+        for (int j = sleep_threads_size; j > idx; j--) {
+          sleep_threads[j] = sleep_threads[j-1];
+        }
+        break;
+      }
+    }
+    sleep_threads[idx] = current;
+    sleep_threads_size++;
+  }
+}
+
+struct thread* pop_sleep_thread() {
+  sleep_threads_size--;
+  return sleep_threads[sleep_threads_size];
+}
+
+bool sleep_check() {
+  if (sleep_threads_size == 0 || sleep_threads[sleep_threads_size - 1]->wakeup_tick > timer_ticks()) {
+    return false;
+  }
+  return true;
+}
+
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+  struct thread *cur =  thread_current(); // берем структуру текущего процесса
+  cur->wakeup_tick = start + ticks; // меняем время пробуждения процесса
 
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  intr_set_level(INTR_OFF);
+  add_sleep_thread(cur); // добавляем текущий процесс в список спящих процессов
+  thread_block(); // меняем статус процесса и вызываем планирование без добавления текущего процесса в список процессов READY
+  // intr_set_level(INTR_ON);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -171,6 +208,13 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
+
+  bool notempty = sleep_check();
+
+  if (notempty) {
+    struct thread* popped = pop_sleep_thread();
+    thread_unblock(popped);
+  }
   thread_tick ();
 }
 
