@@ -92,16 +92,16 @@ static void add_sleep_thread(struct thread* current) {
   if (sleep_threads_size < MAX_SLEEP_THREADS) {
     int idx = sleep_threads_size;
     for (int i = 0; i < sleep_threads_size; i++) {
-      if (current->wakeup_tick >= sleep_threads[i]->wakeup_tick) {
-        idx = i;
-        for (int j = sleep_threads_size; j > idx; j--) {
+      if (current->wakeup_tick >= sleep_threads[i]->wakeup_tick) { // ischem process na mesto kotorogo dolzhen vstat noviy
+        idx = i; // zapominaem mesto
+        for (int j = sleep_threads_size; j > idx; j--) { // sdvigaem vse processi posle nego 
           sleep_threads[j] = sleep_threads[j-1];
         }
         break;
       }
     }
-    sleep_threads[idx] = current;
-    sleep_threads_size++;
+    sleep_threads[idx] = current; // dobavlyaem noviy process na nuzhnoe mesto
+    sleep_threads_size++; 
   }
 }
 
@@ -127,10 +127,10 @@ timer_sleep (int64_t ticks)
   cur->wakeup_tick = start + ticks; // меняем время пробуждения процесса
 
   ASSERT (intr_get_level () == INTR_ON);
-  intr_set_level(INTR_OFF);
+  intr_set_level(INTR_OFF); // vikluchaem prerivaniya 
   add_sleep_thread(cur); // добавляем текущий процесс в список спящих процессов
   thread_block(); // меняем статус процесса и вызываем планирование без добавления текущего процесса в список процессов READY
-  // intr_set_level(INTR_ON);
+  intr_set_level(INTR_ON); // vkluchaem prerivaniya
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -207,15 +207,13 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
-  ticks++;
-
-  bool notempty = sleep_check();
-
-  if (notempty) {
-    struct thread* popped = pop_sleep_thread();
-    thread_unblock(popped);
-  }
+  ticks++; 
   thread_tick ();
+
+  while (sleep_check()) { // est li process kotoriy mozhno razbudit
+    struct thread* popped = pop_sleep_thread(); // udalyaem process
+    thread_unblock(popped); // razblokiruem ego
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
