@@ -7,6 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "lib/kernel/list.h"
 #define MAX_SLEEP_THREADS 20
   
 /* See [8254] for hardware details of the 8254 timer chip. */
@@ -31,11 +32,21 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+static struct list sleep_threads; 
+
+static int thread_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED) {
+  struct thread* first = list_entry(f, struct thread, elem);
+  struct thread* second = list_entry(s, struct thread, elem);
+
+  return first->wakeup_tick < second->wakeup_tick;
+}
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
 timer_init (void) 
 {
+  list_init(&sleep_threads);
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
@@ -85,52 +96,20 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-struct thread* sleep_threads[MAX_SLEEP_THREADS] = {}; // массив спящих процессов
-int64_t sleep_threads_size = 0;
-
-static void add_sleep_thread(struct thread* current) {
-  if (sleep_threads_size < MAX_SLEEP_THREADS) {
-    int idx = sleep_threads_size;
-    for (int i = 0; i < sleep_threads_size; i++) {
-      if (current->wakeup_tick >= sleep_threads[i]->wakeup_tick) { // ischem process na mesto kotorogo dolzhen vstat noviy
-        idx = i; // zapominaem mesto
-        for (int j = sleep_threads_size; j > idx; j--) { // sdvigaem vse processi posle nego 
-          sleep_threads[j] = sleep_threads[j-1];
-        }
-        break;
-      }
-    }
-    sleep_threads[idx] = current; // dobavlyaem noviy process na nuzhnoe mesto
-    sleep_threads_size++; 
-  }
-}
-
-struct thread* pop_sleep_thread() {
-  sleep_threads_size--;
-  return sleep_threads[sleep_threads_size];
-}
-
-bool sleep_check() {
-  if (sleep_threads_size == 0 || sleep_threads[sleep_threads_size - 1]->wakeup_tick > timer_ticks()) {
-    return false;
-  }
-  return true;
-}
-
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-  struct thread *cur =  thread_current(); // берем структуру текущего процесса
-  cur->wakeup_tick = start + ticks; // меняем время пробуждения процесса
+  struct thread *cur =  thread_current();
+  cur->wakeup_tick = start + ticks; 
 
   ASSERT (intr_get_level () == INTR_ON);
-  intr_set_level(INTR_OFF); // vikluchaem prerivaniya 
-  add_sleep_thread(cur); // добавляем текущий процесс в список спящих процессов
-  thread_block(); // меняем статус процесса и вызываем планирование без добавления текущего процесса в список процессов READY
-  intr_set_level(INTR_ON); // vkluchaem prerivaniya
+  intr_set_level(INTR_OFF);
+  list_insert_ordered(&sleep_threads, &cur->elem, thread_cmp, NULL);
+  thread_block();
+  intr_set_level(INTR_ON);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -210,9 +189,16 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++; 
   thread_tick ();
 
-  while (sleep_check()) { // est li process kotoriy mozhno razbudit
-    struct thread* popped = pop_sleep_thread(); // udalyaem process
-    thread_unblock(popped); // razblokiruem ego
+  struct list_elem* current = list_begin(&sleep_threads);
+
+  while (current != list_end(&sleep_threads)) { 
+    struct thread* current_thread = list_entry(current, struct thread, elem);
+    if (current_thread->wakeup_tick > timer_ticks()) {
+      break;
+    }
+    list_remove(&current_thread->elem);
+    current = list_next(current);
+    thread_unblock(current_thread);
   }
 }
 
