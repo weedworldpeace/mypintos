@@ -93,6 +93,8 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
     int64_t wakeup_tick;
+    int base_priority;
+    struct lock *locked;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -138,5 +140,7 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+int thread_priority_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED);
+void thread_reorder(struct thread *t);
 
 #endif /* threads/thread.h */

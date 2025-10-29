@@ -70,6 +70,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+int thread_priority_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -209,6 +210,8 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  thread_yield();
+
   return tid;
 }
 
@@ -245,7 +248,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -304,6 +307,17 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
+int thread_priority_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED) {
+  struct thread* first = list_entry(f, struct thread, elem);
+  struct thread* second = list_entry(s, struct thread, elem);
+
+  return first->priority > second->priority;
+}
+
+void thread_reorder(struct thread *t) {
+  list_sort(&ready_list, thread_priority_cmp, NULL);
+}
+
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
@@ -316,7 +330,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, thread_priority_cmp, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -343,7 +357,19 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread *cur = thread_current();
+
+  enum intr_level old_level = intr_disable();
+
+  if (cur->priority == cur->base_priority) {
+    cur->priority = new_priority;
+  } else if (new_priority > cur->priority) {
+    cur->priority = new_priority;
+  }
+  cur->base_priority = new_priority;
+  
+  intr_set_level(old_level);
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -468,6 +494,8 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
+  t->locked = NULL;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
