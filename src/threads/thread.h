@@ -95,8 +95,9 @@ struct thread
     struct list_elem elem;              /* List element. */
     int64_t wakeup_tick;
     struct lock *locked;
-    struct thread *donors[15];
-    int donors_size;
+    struct list donors;
+    struct list_elem donate_elem;
+    struct list_elem sleep_elem;
     int base_priority;
 
 #ifdef USERPROG

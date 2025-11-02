@@ -34,9 +34,9 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 static struct list sleep_threads; 
 
-static int thread_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED) {
-  struct thread* first = list_entry(f, struct thread, elem);
-  struct thread* second = list_entry(s, struct thread, elem);
+static int thread_wakeup_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED) {
+  struct thread* first = list_entry(f, struct thread, sleep_elem);
+  struct thread* second = list_entry(s, struct thread, sleep_elem);
 
   return first->wakeup_tick < second->wakeup_tick;
 }
@@ -101,13 +101,12 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
   struct thread *cur =  thread_current();
-  cur->wakeup_tick = start + ticks; 
+  cur->wakeup_tick = timer_ticks() + ticks; 
 
   ASSERT (intr_get_level () == INTR_ON);
   intr_set_level(INTR_OFF);
-  list_insert_ordered(&sleep_threads, &cur->elem, thread_cmp, NULL);
+  list_insert_ordered(&sleep_threads, &cur->sleep_elem, thread_wakeup_cmp, NULL);
   thread_block();
   intr_set_level(INTR_ON);
 }
@@ -192,12 +191,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
   struct list_elem* current = list_begin(&sleep_threads);
 
   while (current != list_end(&sleep_threads)) { 
-    struct thread* current_thread = list_entry(current, struct thread, elem);
+    struct thread* current_thread = list_entry(current, struct thread, sleep_elem);
     if (current_thread->wakeup_tick > timer_ticks()) {
       break;
     }
-    list_remove(&current_thread->elem);
-    current = list_next(current);
+    current = list_remove(current);
     thread_unblock(current_thread);
   }
 }

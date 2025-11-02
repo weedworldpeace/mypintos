@@ -192,10 +192,23 @@ lock_init (struct lock *lock)
   sema_init (&lock->semaphore, 1);
 }
 
+void remove_old_donate(struct list* donors, struct thread* dreamer) {
+  struct list_elem *e = list_begin(donors);
+  while (e != list_end(donors)) {
+    struct thread *donor = list_entry(e, struct thread, donate_elem);
+    if (donor == dreamer) {
+      list_remove(e);
+      return;
+    } else {
+      e = list_next(e);
+    }
+  }
+}
+
 void donate(struct lock* lock, struct thread *cur) {
   if (lock != NULL && lock->holder != NULL && lock->holder->priority < cur->priority) {
-    lock->holder->donors[lock->holder->donors_size] = cur;
-    lock->holder->donors_size++;
+    remove_old_donate(&lock->holder->donors, cur);
+    list_push_back(&lock->holder->donors, &cur->donate_elem);
     lock->holder->priority = cur->priority;
     thread_reorder();
     if (lock->holder->locked != NULL) {
@@ -209,18 +222,16 @@ void undonate(struct lock* lock) {
   struct thread *cur = thread_current();
   int max_priority = cur->base_priority;
 
-  int i = 0;
-  while(i < cur->donors_size) {
-    if (cur->donors[i]->locked == lock) {
-      struct thread *tmp = cur->donors[cur->donors_size - 1];
-      cur->donors[cur->donors_size - 1] = cur->donors[i];
-      cur->donors[i] = tmp;
-      cur->donors_size--;
+  struct list_elem *e = list_begin(&cur->donors);
+  while (e != list_end(&cur->donors)) {
+    struct thread *donor = list_entry(e, struct thread, donate_elem);
+    if (donor->locked == lock) {
+      e = list_remove(e);
     } else {
-      if (cur->donors[i]->priority > max_priority) {
-        max_priority = cur->donors[i]->priority;
+      if (donor->priority > max_priority) {
+        max_priority = donor->priority;
       }
-      i++;
+      e = list_next(e);
     }
   }
   cur->priority = max_priority;
