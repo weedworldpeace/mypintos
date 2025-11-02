@@ -314,7 +314,7 @@ int thread_priority_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNU
   return first->priority > second->priority;
 }
 
-void thread_reorder(struct thread *t) {
+void thread_reorder(void) {
   list_sort(&ready_list, thread_priority_cmp, NULL);
 }
 
@@ -358,6 +358,7 @@ void
 thread_set_priority (int new_priority) 
 {
   struct thread *cur = thread_current();
+  int old_priority = cur->priority;
 
   enum intr_level old_level = intr_disable();
 
@@ -369,7 +370,9 @@ thread_set_priority (int new_priority)
   cur->base_priority = new_priority;
   
   intr_set_level(old_level);
-  thread_yield();
+  if (cur->priority < old_priority) {
+    thread_yield();
+  }
 }
 
 /* Returns the current thread's priority. */
