@@ -82,7 +82,11 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 		if (emleft_fullness > 0) {
 			emleft_fullness--;
 			sema_up(&sema_emleft);
-		} else if (emright_fullness > 0) {
+		} else if (noleft_fullness > 0) {
+			noleft_fullness--;
+			sema_up(&sema_noleft);
+		}
+		else if (emright_fullness > 0) {
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
 				bridge_direction = dir_right;
@@ -101,9 +105,6 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			} else {
 				bridge_fullness--;
 			}
-		} else if (noleft_fullness > 0) {
-			noleft_fullness--;
-			sema_up(&sema_noleft);
 		} else if (noright_fullness > 0) {
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
@@ -123,6 +124,9 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 		if (emright_fullness > 0) {
 			emright_fullness--;
 			sema_up(&sema_emright);
+		} else if (noright_fullness > 0) {
+			noright_fullness--;
+			sema_up(&sema_noright);
 		} else if (emleft_fullness > 0) {
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
@@ -142,9 +146,6 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			} else {
 				bridge_fullness--;
 			}
-		} else if (noright_fullness > 0) {
-			noright_fullness--;
-			sema_up(&sema_noright);
 		} else if (noleft_fullness > 0) {
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
