@@ -38,7 +38,7 @@ void arrive_bridge(enum car_priority prio, enum car_direction dir)
 		bridge_fullness++;
 		lock_release(&mu);
 	} else {
-		if (bridge_direction == dir && bridge_fullness < 3) {
+		if (bridge_direction == dir && bridge_fullness < 2) {
 			bridge_fullness++;
 			lock_release(&mu);
 		} else {
@@ -86,13 +86,13 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
 				bridge_direction = dir_right;
-				while (bridge_fullness < 3 && emright_fullness > 0) {
+				while (bridge_fullness < 2 && emright_fullness > 0) {
 					bridge_fullness++;
 					emright_fullness--;
 					sema_up(&sema_emright);
 				}
-				if (bridge_fullness < 3 && noright_fullness > 0) {
-					while (bridge_fullness < 3 && noright_fullness > 0) {
+				if (bridge_fullness < 2 && noright_fullness > 0) {
+					while (bridge_fullness < 2 && noright_fullness > 0) {
 						bridge_fullness++;
 						noright_fullness--;
 						sema_up(&sema_noright);
@@ -108,7 +108,7 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
 				bridge_direction = dir_right;
-				while (bridge_fullness < 3 && noright_fullness > 0) {
+				while (bridge_fullness < 2 && noright_fullness > 0) {
 					bridge_fullness++;
 					noright_fullness--;
 					sema_up(&sema_noright);
@@ -127,13 +127,13 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
 				bridge_direction = dir_left;
-				while (bridge_fullness < 3 && emleft_fullness > 0) {
+				while (bridge_fullness < 2 && emleft_fullness > 0) {
 					bridge_fullness++;
 					emleft_fullness--;
 					sema_up(&sema_emleft);
 				}
-				if (bridge_fullness < 3 && noleft_fullness > 0) {
-					while (bridge_fullness < 3 && noleft_fullness > 0) {
+				if (bridge_fullness < 2 && noleft_fullness > 0) {
+					while (bridge_fullness < 2 && noleft_fullness > 0) {
 						bridge_fullness++;
 						noleft_fullness--;
 						sema_up(&sema_noleft);
@@ -149,7 +149,7 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			if (bridge_fullness == 1) {
 				bridge_fullness--;
 				bridge_direction = dir_left;
-				while (bridge_fullness < 3 && noleft_fullness > 0) {
+				while (bridge_fullness < 2 && noleft_fullness > 0) {
 					bridge_fullness++;
 					noleft_fullness--;
 					sema_up(&sema_noleft);
