@@ -16,6 +16,7 @@ int cter_left_emer = 0;
 int cter_right_emer = 0;
 enum car_direction dir_bridge;
 int cter_bridge = 0;
+bool norm_flag = false;
 
 void narrow_bridge_init(void)
 {
@@ -27,6 +28,11 @@ void narrow_bridge_init(void)
 
 void arrive_bridge(enum car_priority prio, enum car_direction dir)
 {
+	if (prio == car_normal && !thread_current()->switched) {
+		thread_current()->switched = true;
+		thread_yield();
+	}
+
 	if (!cter_bridge) {
 		dir_bridge = dir;
 		cter_bridge++;
@@ -87,9 +93,7 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 {
 	cter_bridge--;
 	if (!dir) {
-		if (cter_left_emer > 0) {
-			process_machine(0);
-		} else if (cter_right_emer > 0) {
+	    if (cter_right_emer > 0) {
 			if (!cter_bridge) {
 				dir_bridge = dir_right;
 				while (cter_bridge < 2 && cter_right_emer > 0) {
@@ -101,18 +105,20 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			} else if (bridge_tick == timer_ticks() && cter_left_auto > 0) {
 				process_machine(2);
 			}
+		} else if (cter_left_emer > 0) {
+			process_machine(0);
+		}  else if (cter_right_auto > 0) {
+			if (!cter_bridge) {
+				dir_bridge = dir_right;
+				while (cter_bridge < 2 && cter_right_auto > 0) {
+					process_machine(3);
+				}
+			}
 		} else if (cter_left_auto > 0) {
 			process_machine(2);
-		} else if (!cter_bridge) {
-			dir_bridge = dir_right;
-			while (cter_bridge < 2 && cter_right_auto > 0) {
-				process_machine(3);
-			}
 		}
 	} else {
-		if (cter_right_emer > 0) {
-			process_machine(1);
-		} else if (cter_left_emer > 0) {
+		if (cter_left_emer > 0) {
 			if (!cter_bridge) {
 				dir_bridge = dir_left;
 				while (cter_bridge < 2 && cter_left_emer > 0) {
@@ -124,13 +130,17 @@ void exit_bridge(enum car_priority prio UNUSED, enum car_direction dir)
 			} else if (bridge_tick == timer_ticks() && cter_right_auto > 0) {
 				process_machine(3);
 			}
+		} else if (cter_right_emer > 0) {
+			process_machine(1);
+		}  else if (cter_left_auto > 0) {
+			if (!cter_bridge) {
+				dir_bridge = dir_left;
+				while (cter_bridge < 2 && cter_left_auto > 0) {
+					process_machine(2);
+				}
+			}
 		} else if (cter_right_auto > 0) {
 			process_machine(3);
-		} else if (!cter_bridge) {
-			dir_bridge = dir_left;
-			while (cter_bridge < 2 && cter_left_auto > 0) {
-				process_machine(2);
-			}
 		}
 	}
 }

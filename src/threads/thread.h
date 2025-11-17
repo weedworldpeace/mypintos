@@ -81,12 +81,6 @@ typedef int tid_t;
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
 
-struct donated {
-   struct thread *donated_thread;
-   int priority;
-   bool is_first;
-};
-
 struct thread
   {
     /* Owned by thread.c. */
@@ -104,6 +98,7 @@ struct thread
     struct thread *donors[15];
     int donors_size;
     int base_priority;
+    bool switched;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
