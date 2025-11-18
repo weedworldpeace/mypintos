@@ -199,6 +199,11 @@ timer_interrupt (struct intr_frame *args UNUSED)
     current = list_remove(current);
     thread_unblock(current_thread);
   }
+
+  if (thread_current()->fcfs && thread_current()->running_tick >= thread_current()->burst) {
+    intr_yield_on_return();
+  }
+
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

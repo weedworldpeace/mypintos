@@ -100,6 +100,8 @@ struct thread
     struct list_elem sleep_elem;
     int base_priority;
     int64_t running_tick;
+    int64_t burst;
+    bool fcfs;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -148,5 +150,6 @@ int thread_get_load_avg (void);
 int thread_priority_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED);
 void thread_reorder(void);
 int64_t thread_running_ticks(tid_t id);
+tid_t fcfs_thread_create (const char *name, int priority, thread_func *, int64_t, void*); 
 
 #endif /* threads/thread.h */
