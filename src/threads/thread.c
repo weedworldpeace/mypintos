@@ -72,6 +72,19 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 int thread_priority_cmp(struct  list_elem *f, struct list_elem *s, void *aux UNUSED);
 
+int64_t thread_running_ticks(tid_t id) {
+  struct list_elem* current = list_begin(&ready_list);
+
+  while (current != list_end(&ready_list)) { 
+    struct thread* current_thread = list_entry(current, struct thread, elem);
+    if (current_thread->tid == id) {
+      return current_thread->running_tick;
+    }
+    current = list_next(current);
+  }
+  return -1;
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -210,7 +223,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  thread_yield();
+  if (thread_current()->priority < priority) {
+    thread_yield();
+  }
 
   return tid;
 }
@@ -500,6 +515,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->locked = NULL;
   list_init(&t->donors);
   t->base_priority = priority;
+  t->running_tick = 0;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }

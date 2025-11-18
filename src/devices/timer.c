@@ -185,6 +185,7 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  thread_current()->running_tick++;
   ticks++; 
   thread_tick ();
 
