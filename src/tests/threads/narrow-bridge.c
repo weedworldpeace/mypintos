@@ -18,6 +18,10 @@ enum car_direction dir_bridge;
 int cter_bridge = 0;
 bool norm_flag = false;
 
+int emer_waiting_left = 0;
+int emer_waiting_right = 0;
+bool emer_started = false;
+
 void narrow_bridge_init(void)
 {
 	sema_init(&sema_left_auto, 0);
@@ -28,9 +32,32 @@ void narrow_bridge_init(void)
 
 void arrive_bridge(enum car_priority prio, enum car_direction dir)
 {
-	if (prio == car_normal && !thread_current()->switched) {
-		thread_current()->switched = true;
+	if (prio == car_normal) {
 		thread_yield();
+		while (!emer_started && (emer_waiting_left != 0 || emer_waiting_right != 0)) {
+			thread_yield();
+		}
+	}
+
+	if (prio == car_emergency) {
+		if (dir == dir_left) {
+			emer_waiting_left++;
+		} else {
+			emer_waiting_right++;
+		}
+		thread_yield();
+		if (dir == dir_left) {
+			if (emer_waiting_left < emer_waiting_right) {
+				thread_yield();
+				emer_started = true;
+			} else {
+				emer_started = true;
+			}
+		} else {
+			if (emer_waiting_left == 0) {
+				emer_started = true;
+			}
+		}
 	}
 
 	if (!cter_bridge) {
