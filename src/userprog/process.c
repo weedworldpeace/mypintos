@@ -17,6 +17,11 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "lib/string.h"
+#include "threads/synch.h"
+
+struct semaphore sema;
+int code1080;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -28,6 +33,9 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
+
+  sema_init(&sema, 0);
+
   char *fn_copy;
   tid_t tid;
 
@@ -88,7 +96,9 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  return -1;
+  sema_down(&sema);
+
+  return code1080;
 }
 
 /* Free the current process's resources. */
@@ -96,6 +106,9 @@ void
 process_exit (void)
 {
   struct thread *cur = thread_current ();
+
+  code1080 = cur->exit_status;
+
   uint32_t *pd;
 
   /* Destroy the current process's page directory and switch back
@@ -114,6 +127,15 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  char name[16];
+  strlcpy(&name, cur->name, 16);
+
+  char *token, *saved;
+  token = strtok_r(name, " ", &saved);
+  
+  printf("%s: exit(%d)\n", token, cur->exit_status);
+  sema_up(&sema);
 }
 
 /* Sets up the CPU for running user code in the current
@@ -215,6 +237,11 @@ load (const char *file_name, void (**eip) (void), void **esp)
   bool success = false;
   int i;
 
+  char name[20];
+  strlcpy(name, file_name, PGSIZE);
+  char *token, *save_ptr;
+  token = strtok_r(name, " ", &save_ptr);
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create ();
   if (t->pagedir == NULL) 
@@ -222,10 +249,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  file = filesys_open (token);
   if (file == NULL) 
     {
-      printf ("load: %s: open failed\n", file_name);
+      printf ("load: %s: open failed\n", token);
       goto done; 
     }
 
@@ -238,7 +265,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       || ehdr.e_phentsize != sizeof (struct Elf32_Phdr)
       || ehdr.e_phnum > 1024) 
     {
-      printf ("load: %s: error loading executable\n", file_name);
+      printf ("load: %s: error loading executable\n", token);
       goto done; 
     }
 
@@ -309,6 +336,52 @@ load (const char *file_name, void (**eip) (void), void **esp)
   *eip = (void (*) (void)) ehdr.e_entry;
 
   success = true;
+
+  char *args[20];
+  char *args_addr[20];
+
+  int idx = 0;
+  
+  token = strtok_r(file_name, " ", &save_ptr);
+  for (idx = 0; token != NULL; idx++) {
+    args[idx] = token;
+    token = strtok_r(NULL, " ", &save_ptr);
+  }
+
+  for (int jdx = idx - 1; jdx >= 0; jdx--) {
+    *esp -= strlen(args[jdx]) + 1;
+    char* stack = *esp;
+    memcpy(stack, args[jdx], strlen(args[jdx]) + 1);
+    args_addr[jdx] = stack;
+  }
+
+
+  // int32_t esp_int = *esp;
+  // esp_int -= esp_int % 4;
+  // *esp = esp_int;
+
+  *esp -= 4;
+  char* stack = *esp;
+  memset(stack, 0, 4);
+
+  for (int jdx = idx - 1; jdx >= 0; jdx--) {
+    *esp -= 4;
+    char* stack = *esp;
+    memcpy(stack, &(args_addr[jdx]), 4);
+  }
+  
+  *esp -= 4;
+  char* tmp = (char*)*esp + 4;
+  memcpy(*esp, &tmp, 4);
+
+
+  *esp -= 4;
+  memcpy(*esp, &idx, 4);
+
+
+  *esp -= 4;
+  stack = *esp;
+  memset(stack, 0, 4);
 
  done:
   /* We arrive here whether the load is successful or not. */
