@@ -15,6 +15,13 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
+  if (*(int*) f->esp == SYS_WRITE) {
+		putbuf( ((const char**) f->esp)[2], ((size_t*) f->esp)[3]);
+		return;
+	} else if (*(int*) f->esp == SYS_EXIT) {
+    thread_current()->exit_status = ((size_t*) f->esp)[1];
+    thread_exit();
+	}
   printf ("system call!\n");
   thread_exit ();
 }
